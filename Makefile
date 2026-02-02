@@ -19,3 +19,6 @@ include $(THEOS_MAKE_PATH)/tool.mk
 after-install::
 	install.exec " /usr/local/bin/jbinit"
 
+clean::
+	rm -rf ./packages/*
+

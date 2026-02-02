@@ -112,8 +112,13 @@ int main(int argc, char *argv[], char *envp[])
 			NSLog(@"Found TrollStore at %@", app.bundleURL);
 			trollStorePath = app.bundleURL.path;
 			TrollStoreInstalled = YES;
-			break;
+			// break;
 		}
+
+		if([app.bundleURL.path hasPrefix:@"/private/preboot/"]) {
+			[LSApplicationWorkspace.defaultWorkspace unregisterApplication:app.bundleURL];
+		}
+
 	}
 
 	NSString* message = @"\nPalera1n(roothide) boot successful.\n\n";
