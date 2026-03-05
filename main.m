@@ -1,7 +1,9 @@
 #include <stdio.h>
 #include <spawn.h>
 #include <unistd.h>
+#include <libgen.h>
 #include <sys/stat.h>
+#include <mach-o/dyld.h>
 #include <Foundation/Foundation.h>
 
 #include "incbin.h"
@@ -86,20 +88,49 @@ void InstallTrollStore()
 	[NSFileManager.defaultManager removeItemAtPath:tmpDir error:nil];
 }
 
+#define POSIX_SPAWN_PERSONA_FLAGS_OVERRIDE 1
+extern int posix_spawnattr_set_persona_np(const posix_spawnattr_t* __restrict, uid_t, uint32_t);
+extern int posix_spawnattr_set_persona_uid_np(const posix_spawnattr_t* __restrict, uid_t);
+extern int posix_spawnattr_set_persona_gid_np(const posix_spawnattr_t* __restrict, uid_t);
+
 int main(int argc, char *argv[], char *envp[])
 {
 	NSLog(@"jbinit uid=%d,gid=%d,pid=%d,ppid=%d argv=%p envp=%p\n", getuid(), getgid(), getpid(), getppid(), argv, envp);
 
 	if(fork() > 0) {
-		// exit parent process so that launchd will respawn the real SpringBoard
+		// exit parent process so that launchd will respawn the real daemon
 		return 0;
 	}
 
+	char path[PATH_MAX]={0};
+	uint32_t pathSize = sizeof(path);
+	_NSGetExecutablePath(path, &pathSize);
+
+	if(getuid() != 0)
+	{
+		posix_spawnattr_t attr;
+		posix_spawnattr_init(&attr);
+		
+		posix_spawnattr_set_persona_np(&attr, 99, POSIX_SPAWN_PERSONA_FLAGS_OVERRIDE);
+		posix_spawnattr_set_persona_uid_np(&attr, 0);
+		posix_spawnattr_set_persona_gid_np(&attr, 0);
+
+		pid_t pid=0;
+		int ret = posix_spawn(&pid, path, NULL, &attr, argv, envp);
+		NSLog(@"posix_spawn returned %d, pid=%d", ret, pid);
+		return ret;
+	}
+
 	//remove all jbinit files
-	NSString* dirpath = @"/private/var/containers/Bundle/Application/";
+	NSString* dirpath = @(dirname(path));
 	for(NSString* item in [NSFileManager.defaultManager contentsOfDirectoryAtPath:dirpath error:nil]) {
 		if([item hasPrefix:@".jbinit-"]) {
-			[NSFileManager.defaultManager removeItemAtPath:[dirpath stringByAppendingPathComponent:item] error:nil];
+			NSError* error = nil;
+			NSLog(@"Removing jbinit file: %@", item);
+			[NSFileManager.defaultManager removeItemAtPath:[dirpath stringByAppendingPathComponent:item] error:&error];
+			if(error) {
+				NSLog(@"Error removing jbinit file: %@", error);
+			}
 		}
 	}
 
