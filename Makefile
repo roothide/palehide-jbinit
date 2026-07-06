@@ -3,6 +3,10 @@ TARGET = iphone:clang:latest:15.0
 # THEOS_DEVICE_IP = iphoneX.local
 THEOS_PACKAGE_SCHEME = roothide
 
+ifneq ($(shell ldid --help 2>&1 | grep -qi procursus && echo 1 || echo 0),1)
+$(error "Please install Procursus ldid")
+endif
+
 include $(THEOS)/makefiles/common.mk
 
 TOOL_NAME = jbinit
